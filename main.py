@@ -25,7 +25,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.metrics import f1_score
 from multiprocessing import Pool, TimeoutError
-import tensorflow as tf
+#import tensorflow as tf
 
 warnings.filterwarnings("ignore")
 
@@ -325,20 +325,6 @@ def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
 #-------------------------------| INPUTS |------------------------------------#
 #=============================================================================#
 start_time = timeit.default_timer()
-
-# data_dir = "C:\\Mehrdad\\DARPA-WASH\\datasets\\"
-# cvdir = "C:\\Mehrdad\\DARPA-WASH\\cv5Folds\\cv_5_folds\\"
-
-# sensors_to_fuse = ['Acc','Gyro','W_acc','Aud']
-# FOD = ['label:LYING_DOWN','label:SITTING','label:OR_standing','label:FIX_walking']#\
-# #      ,'label:FIX_running','label:BICYCLING']
-# feature_sets_st = [5,4,5,3] #feature set structure
-# feature_sets_count = 10
-# bagging_R = 0.6  #bagging ratio
-# num_bags = 4
-# models_per_rp = 2  #number of models to select for the fusion per response permutation
-# feature_range = range(1,225) #range of the column number of all features
-# num_prc = 6  #number of processors to split the job during parallelization
 
 
 #=============================================================================#

@@ -20,19 +20,65 @@ import re
 class DS_Model:
     
     def __init__(self, resp_var_1, resp_var_2, X_train, y_train, feature_set_idx):
+        """
+        Initializing a DS model
+
+        Parameters
+        ----------
+        resp_var_1 : list
+        resp_var_2 : list
+            These two are the response variables that we want to build a model
+            on. For example if we are building a model to classify {c1} vs {c2,c3}
+            then [c1] would be our resp_var_1 and [c2,c3] would be our resp_var_2.
+            
+        X_train : pd.dataframe
+            training features in a dataframe format.
+        y_train : pd.dataframe
+            training labels as a vector.
+        feature_set_idx : integer
+            Index of the feature set (out of all the randomly created feature sets).
+
+        Returns
+        -------
+        None.
+
+        """
         self.Feature_Set_idx = feature_set_idx
         self.Response_Variables = [resp_var_1,resp_var_2]
         self.clf = LogisticRegression(class_weight='balanced',solver='saga', n_jobs=-1).fit(X_train, y_train)
-        self.Bags = []
-        self.Uncertainty_B = 0
-        self.mass = MassFunction()
+        self.Bags = []                          #list of the bags for this model
+        self.Uncertainty_B = 0                  #Uncertainty of the biased model
+        self.mass = MassFunction()              #Mass function of the model
     
     def Mass_Function_Setter(self, uncertainty, X):
+        """
+        We used pyds package (a dempster shafer package) to define the mass function
+        given the probabilities and uncertainty.
+        """
         probability = self.clf.predict_proba(X)
         self.mass[self.Response_Variables[0]] = probability[0,0]*(1-uncertainty)
         self.mass[self.Response_Variables[1]] = probability[0,1]*(1-uncertainty)
     
     def Bags_Trainer(self, X_train, y_train, ratio, num_bags):
+        """
+        This function trains bags
+
+        Parameters
+        ----------
+        X_train : pd.dataframe
+            training features in a dataframe format.
+        y_train : pd.dataframe
+            training labels as a vector.
+        ratio : float
+            Ratio of the generated bagging size to the actual training dataset.
+        num_bags : integer
+            number of the bags to generate.
+
+        Returns
+        -------
+        None.
+
+        """
         for i in range(num_bags):
             self.Bags.append(clone(self.clf))
             indices = random.choices(list(range(len(X_train))), k=int(ratio*(len(X_train))))
@@ -42,6 +88,20 @@ class DS_Model:
             self.Bags[i].fit(X_train_Bag, y_train_Bag)
     
     def Uncertainty_Context(self, X_test_single):
+        """
+        This function calculates the uncertainty of the contextual meaning by
+        calculating the votes from all the bags.
+
+        Parameters
+        ----------
+        X_test_single : pd.series
+            one single test example.
+
+        Returns
+        -------
+        None.
+
+        """
         
         C = len(self.Response_Variables) #Number of the classes
         V = np.zeros(C) #Vote vector
@@ -95,27 +155,33 @@ class ProgressBar(object):
 
 
 def feature_set(sensors_to_fuse, st_feat, Sensors, feat_set_count=100):
-    """This function takes a list of name of the sensors to fuse "sensors_to_fuse
-       and structure of the reduced feature space also as a list (like [s1,s2,..])
-       where "si" is the number of the features of the ith sensor to be used and 
-       also number of the reduced feature sets to create. Then it returns a matrix
-       with each row being a feature set number of columns
+    """
+    This function takes a list of name of the sensors to fuse "sensors_to_fuse
+    and structure of the reduced feature space also as a list (like [s1,s2,..])
+    where "si" is the number of the features of the ith sensor to be used and 
+    also number of the reduced feature sets to create. Then it returns a matrix
+    with each row being a feature set number of columns
        
-       Input:
-           sensors_to_fuse: a list of the name of the sensors to fuse. like 
-                            ['Acc','Gyro','PS','Aud']
-           st_feat: the structure of the reduced sensor. like [s1,s2,..] where
-                    "si" is the number of the features of the ith sensor
-           feat_set_count: the number of randome feature sets to create. It is
-                           a number like 100
-           Sensors: the sensors dictionary which is the output of the labeling
-                    function
-       Output:
-           selected_feats: a matrix that each row represents one set of features
-                           and the values in each rows are the index of the 
-                           columns of the data to be used as features
+    Parameters
+    ----------
+    sensors_to_fuse: list
+        a list of the name of the sensors to fuse. like ['Acc','Gyro','PS','Aud']
+    st_feat: list
+        the structure of a feature set. like [s1,s2,..] where "si" is 
+        the number of the features of the ith sensor
+    feat_set_count: integer
+        the number of randome feature sets to create. It is a number like 100
+    Sensors: dict
+        the sensors dictionary which is the output of the labeling function
        
-       """
+    Returns
+    -------
+        selected_feats: np.array 2D
+            a matrix that each row represents one set of features and the 
+            values in each rows are the index of the columns of the data to
+            be used as features
+       
+    """
 
     #Making sure that the length of the "st_feat" is equal to the length of the
     #"sensors_to_fuse
@@ -293,6 +359,31 @@ def Fuse_and_Predict(selected_models_idx, Models, FOD, num_classes, num_rp, mode
     
 def NAPS_Models_Trainer(num_rp, fs_range, train_dataset, feature_sets, Response_Perm_1, \
                         Response_Perm_2, impute = True):
+    """
+    This function trains NAPS models.
+
+    Parameters
+    ----------
+    num_rp : int
+        number of the response permutations (which is 2**(n-1)-1 for n classes).
+    fs_range : range or list
+        a list of int from 0 to m (m being the total number of the feature sets).
+    train_dataset : pd.dataframe
+        dataframe of the training features.
+    feature_sets : np.array 2D
+        matrix of the selected features.
+    Response_Perm_1 : list
+        lsit of the response permutations.
+    Response_Perm_2 : list
+        complementary list of the Response_Perm_1.
+    impute : bool, optional
+        Whether to impute or discard missing features. The default is True.
+
+    Returns
+    -------
+    None.
+
+    """
     NAPS_models = []
     print('\nLooping over Response Permutations \n ')
     
