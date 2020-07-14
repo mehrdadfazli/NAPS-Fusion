@@ -258,11 +258,11 @@ def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
                         Response_Perm_1, Response_Perm_2, i, impute = True)
     
     t1 = timeit.default_timer()
-    print('\tgetting training data took : ', t1-t0)
+    # print('\tgetting training data took : ', t1-t0)
     
     X_train_tmp, y_train_tmp = smt.fit_sample(X_train, y_train)
     t2 = timeit.default_timer()
-    print('\tSMOTE took : ', t2-t1)
+    # print('\tSMOTE took : ', t2-t1)
     
     X_train = pd.DataFrame(X_train_tmp, columns = X_train.columns)
     y_train = pd.DataFrame(y_train_tmp, columns = ['Merged_label'])
@@ -275,11 +275,11 @@ def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
     NAPS_sample = DS_Model(Response_Perm_1[i], Response_Perm_2[i], \
                X_train, y_train, j)
     t4 = timeit.default_timer()
-    print('\tCreating the DS model took : ', t4-t3)
+    # print('\tCreating the DS model took : ', t4-t3)
     
     NAPS_sample.Bags_Trainer(X_train, y_train, bagging_R, num_bags)
     t5 = timeit.default_timer()
-    print('\tTraining bags took : ', t5-t4)
+    # print('\tTraining bags took : ', t5-t4)
     
     NAPS_sample.Uncertainty_B = U2
     

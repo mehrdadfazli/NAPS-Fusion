@@ -357,65 +357,65 @@ def Fuse_and_Predict(selected_models_idx, Models, FOD, num_classes, num_rp, mode
     
     return(y_pred)
     
-def NAPS_Models_Trainer(num_rp, fs_range, train_dataset, feature_sets, Response_Perm_1, \
-                        Response_Perm_2, impute = True):
-    """
-    This function trains NAPS models.
+# def NAPS_Models_Trainer(num_rp, fs_range, train_dataset, feature_sets, Response_Perm_1, \
+#                         Response_Perm_2, impute = True):
+#     """
+#     This function trains NAPS models.
 
-    Parameters
-    ----------
-    num_rp : int
-        number of the response permutations (which is 2**(n-1)-1 for n classes).
-    fs_range : range or list
-        a list of int from 0 to m (m being the total number of the feature sets).
-    train_dataset : pd.dataframe
-        dataframe of the training features.
-    feature_sets : np.array 2D
-        matrix of the selected features.
-    Response_Perm_1 : list
-        lsit of the response permutations.
-    Response_Perm_2 : list
-        complementary list of the Response_Perm_1.
-    impute : bool, optional
-        Whether to impute or discard missing features. The default is True.
+#     Parameters
+#     ----------
+#     num_rp : int
+#         number of the response permutations (which is 2**(n-1)-1 for n classes).
+#     fs_range : range or list
+#         a list of int from 0 to m (m being the total number of the feature sets).
+#     train_dataset : pd.dataframe
+#         dataframe of the training features.
+#     feature_sets : np.array 2D
+#         matrix of the selected features.
+#     Response_Perm_1 : list
+#         lsit of the response permutations.
+#     Response_Perm_2 : list
+#         complementary list of the Response_Perm_1.
+#     impute : bool, optional
+#         Whether to impute or discard missing features. The default is True.
 
-    Returns
-    -------
-    None.
+#     Returns
+#     -------
+#     None.
 
-    """
-    NAPS_models = []
-    print('\nLooping over Response Permutations \n ')
+#     """
+#     NAPS_models = []
+#     print('\nLooping over Response Permutations \n ')
     
-    for i in range(num_rp):
-        print('\nResponse Permutation {}/{}'.format(i+1,num_rp))
-        print('\n\tLooping over feature sets')
-        NAPS_models.append([])
+#     for i in range(num_rp):
+#         print('\nResponse Permutation {}/{}'.format(i+1,num_rp))
+#         print('\n\tLooping over feature sets')
+#         NAPS_models.append([])
                 
-        for j in fs_range:
-            print('\t\tFeature Set {}/{}'.format(j+1, len(fs_range)))
-            NAPS_models[i].append([])
-            #find X and y
-            X_train, y_train, y1, y2 = Xy(train_dataset, feature_sets, j, \
-                            Response_Perm_1, Response_Perm_2, i, impute = True)
-    #        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+#         for j in fs_range:
+#             print('\t\tFeature Set {}/{}'.format(j+1, len(fs_range)))
+#             NAPS_models[i].append([])
+#             #find X and y
+#             X_train, y_train, y1, y2 = Xy(train_dataset, feature_sets, j, \
+#                             Response_Perm_1, Response_Perm_2, i, impute = True)
+#     #        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
             
-            X_train_tmp, y_train_tmp = smt.fit_sample(X_train, y_train)
+#             X_train_tmp, y_train_tmp = smt.fit_sample(X_train, y_train)
             
-            X_train = pd.DataFrame(X_train_tmp, columns = X_train.columns)
-            y_train = pd.DataFrame(y_train_tmp, columns = ['Merged_label'])
+#             X_train = pd.DataFrame(X_train_tmp, columns = X_train.columns)
+#             y_train = pd.DataFrame(y_train_tmp, columns = ['Merged_label'])
             
             
-            if j == 0:
-                U2 = Uncertainty_Bias([y1, y2])
+#             if j == 0:
+#                 U2 = Uncertainty_Bias([y1, y2])
     
-            #create a model and train it
-            NAPS_models[i][j] = DS_Model(Response_Perm_1[i], Response_Perm_2[i], \
-                       X_train, y_train, j)
-            NAPS_models[i][j].Bags_Trainer(X_train, y_train, bagging_R, num_bags)
-            NAPS_models[i][j].Uncertainty_B = U2
+#             #create a model and train it
+#             NAPS_models[i][j] = DS_Model(Response_Perm_1[i], Response_Perm_2[i], \
+#                        X_train, y_train, j)
+#             NAPS_models[i][j].Bags_Trainer(X_train, y_train, bagging_R, num_bags)
+#             NAPS_models[i][j].Uncertainty_B = U2
     
-    return(NAPS_models)
+#     return(NAPS_models)
         
     
     
