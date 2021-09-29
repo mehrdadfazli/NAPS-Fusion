@@ -345,8 +345,9 @@ def Fuse_and_Predict(selected_models_idx, Models, FOD, num_classes, num_rp, mode
         for j in range(models_per_rp):
             if i == 0 and j == 0:
                 continue
-            fs_idx = int(selected_models_idx[i][j])
-            combined_mass = combined_mass & Models[i][fs_idx].mass
+            else:
+                fs_idx = int(selected_models_idx[i][j])
+                combined_mass = combined_mass & Models[i][fs_idx].mass
     
     for i in range(num_classes):
         y_pred[0,i] = combined_mass[{FOD[i]}]

@@ -25,6 +25,9 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.metrics import f1_score
 from multiprocessing import Pool, TimeoutError
+import multiprocess as mp
+from functools import partial
+from itertools import repeat
 #import tensorflow as tf
 
 warnings.filterwarnings("ignore")
@@ -252,6 +255,36 @@ def get_folds_uuids(fold_dir):
 
 def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
                       Response_Perm_2, i, bagging_R, num_bags, impute = True):
+    """
+    Creating an instance of NAPS model and train it and return it
+
+    Parameters
+    ----------
+    train_dataset : pd.Dataframe
+        dataframe of the training data.
+    feature_sets : list of list
+        a 2D matrix where each ro indicates one set of features (column indices).
+    j : int
+        index of the feature set to choose.
+    Response_Perm_1 : list of list
+        matrix of the response permutation of the first set.
+    Response_Perm_2 : TYPE
+        matrix of the response permutation of the second set.
+    i : int
+        index of the response permutation to choose (row of the two matrices).
+    bagging_R : float
+        bagging ratio.
+    num_bags : int
+        number of bags.
+    impute : boolean, optional
+        whether to impute the NaN values. The default is True.
+
+    Returns
+    -------
+    NAPS_sample: DS_Model
+        one instance of a NAPS model
+
+    """
     
     t0 = timeit.default_timer()
     X_train, y_train, y1, y2 = Xy(train_dataset, feature_sets, j, \
@@ -260,7 +293,7 @@ def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
     t1 = timeit.default_timer()
     # print('\tgetting training data took : ', t1-t0)
     
-    X_train_tmp, y_train_tmp = smt.fit_sample(X_train, y_train)
+    X_train_tmp, y_train_tmp = smt.fit_resample(X_train, y_train)
     t2 = timeit.default_timer()
     # print('\tSMOTE took : ', t2-t1)
     
@@ -283,7 +316,7 @@ def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
     
     NAPS_sample.Uncertainty_B = U2
     
-    return(NAPS_sample)
+    return NAPS_sample
 
 #=============================================================================#
 #--------------------------| Tensorflow for LR |------------------------------#
@@ -319,211 +352,225 @@ def train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
 # # Stochastic gradient descent optimizer.
 # optimizer = tf.optimizers.SGD(learning_rate)
 
-
-
-#=============================================================================#
-#-------------------------------| INPUTS |------------------------------------#
-#=============================================================================#
-start_time = timeit.default_timer()
-
-
-#=============================================================================#
-#-------------------------| Reading in the data |-----------------------------#
-#=============================================================================#
-
-
-Activities, Sensors = Set_Act_Sens() #creating two dicts for sensor and activity
-
-print('\n#------------- Reading in the Data of Users -------------#\n')
-dataset_uuid = readdata_csv(data_dir) #reading all data and storing in "dataset" a DF
-stop1 = timeit.default_timer()
-
-print('Reading the data took:   ', int(stop1 - start_time))
-
-uuids = list(dataset_uuid.keys())
-
-print('\n#-------------- Combining the Data of Users-------------#\n')
-
-#We concatenate the data of all participants (60) to get one dataset for all      
-dataset_ag = dataset_uuid[uuids[0]] #"dataset_ag" is the aggregation of all user's data
-for i in range(1,len(uuids)):
-    dataset_ag = pd.concat([dataset_ag, dataset_uuid[uuids[i]]], axis=0, ignore_index=True)
-
-dataset_ag.iloc[:,feature_range] = preprocessing.scale(dataset_ag.iloc[:,feature_range])
-stop2 = timeit.default_timer()
-
-print('Combining the data took:   ', int(stop2 - stop1))
-
-#=============================================================================#
-#-----------------------------| DST Setups |----------------------------------#
-#=============================================================================#
-
-#We create feature sets, a sample mass function (initialized to 0) and response
-#permutations 1 and 2 in which corresponding elements are exclusive and exhaustive
-
-feature_sets = feature_set(sensors_to_fuse, feature_sets_st, Sensors, feature_sets_count)
-mass_template = BPA_builder(FOD)
-Response_Perm_1, Response_Perm_2 = pair_resp(mass_template)
-
-num_p = len(FOD)
-num_fs = len(feature_sets)
-num_rp = len(Response_Perm_1)
-num_folds = 5
-
-smt = SMOTE()
-
-#find the train_dataset
-#at personal level:
-print('\n#-------------- Obtaining Training Dataset -------------#\n')
-
-train_dataset, test_dataset = train_test_spl(0,num_folds,cvdir,dataset_uuid)
-
-stop3 = timeit.default_timer()
-print('Obtaining the training dataset took:   ', int(stop3 - stop2))
-
-print('Training dataset has  {}  samples'.format(len(train_dataset)))
-
-
-#=============================================================================#
-#------------------| Creating and Training all the models |-------------------#
-#=============================================================================#
-
-#------------------------ Parallelization goes here  -------------------------#
-
-#impute = True
-#NAPS_Model = []
-#with Pool(processes= num_prc) as pool:
-#    pool.map(f, [1,2,3])
-#
-#if __name__ == '__main__':
-#    # start 4 worker processes
-#    with Pool(processes=4) as pool:
-#
-#        # print "[0, 1, 4,..., 81]"
-#        print(pool.map(f, range(10)))
-#    NAPS_Model += pool.map(NAPS_Models_Trainer, (num_rp, fs_range, train_dataset\
-#                                                  , feature_sets, Response_Perm_1\
-#                                                  , Response_Perm_2, impute))
-
-#NAPS_Models = NAPS_Models_Trainer(num_rp, fs_range, train_dataset, feature_sets\
-#                                  , Response_Perm_1, Response_Perm_2, impute = True)
-
-print('\n#-------------- Creating and Training Models -------------#\n')
-
-NAPS_models = []
-print('\nLooping over Response Permutations \n ')
-
-for i in range(num_rp): #i runs over response permutations
+if __name__ == '__main__':
     
-    start_rp = timer()
     
-    print('\nResponse Permutation {}/{}'.format(i+1,num_rp))
-    print('\n\tLooping over feature sets')
-    NAPS_models.append([])
+    #=============================================================================#
+    #-------------------------------| INPUTS |------------------------------------#
+    #=============================================================================#
+    start_time = timeit.default_timer()
     
-    progress = ProgressBar(num_fs, fmt = ProgressBar.FULL)
     
-    for j in range(num_fs): #j runs over feature sets
-        NAPS_models[i].append([])
+    #=============================================================================#
+    #-------------------------| Reading in the data |-----------------------------#
+    #=============================================================================#
+    
+    
+    Activities, Sensors = Set_Act_Sens() #creating two dicts for sensor and activity
+    
+    print('\n#------------- Reading in the Data of Users -------------#\n')
+    dataset_uuid = readdata_csv(data_dir) #reading all data and storing in "dataset" a DF
+    stop1 = timeit.default_timer()
+    
+    print('Reading the data took:   ', int(stop1 - start_time))
+    
+    uuids = list(dataset_uuid.keys())
+    
+    print('\n#-------------- Combining the Data of Users-------------#\n')
+    
+    #We concatenate the data of all participants (60) to get one dataset for all      
+    dataset_ag = dataset_uuid[uuids[0]] #"dataset_ag" is the aggregation of all user's data
+    for i in range(1,len(uuids)):
+        dataset_ag = pd.concat([dataset_ag, dataset_uuid[uuids[i]]], axis=0, ignore_index=True)
+    
+    dataset_ag.iloc[:,feature_range] = preprocessing.scale(dataset_ag.iloc[:,feature_range])
+    stop2 = timeit.default_timer()
+    
+    print('Combining the data took:   ', int(stop2 - stop1))
+    
+    #=============================================================================#
+    #-----------------------------| DST Setups |----------------------------------#
+    #=============================================================================#
+    
+    #We create feature sets, a sample mass function (initialized to 0) and response
+    #permutations 1 and 2 in which corresponding elements are exclusive and exhaustive
+    
+    feature_sets = feature_set(sensors_to_fuse, feature_sets_st, Sensors, feature_sets_count)
+    mass_template = BPA_builder(FOD)
+    Response_Perm_1, Response_Perm_2 = pair_resp(mass_template)
+    
+    num_p = len(FOD)
+    num_fs = len(feature_sets)
+    num_rp = len(Response_Perm_1)
+    num_folds = 5
+    
+    smt = SMOTE()
+    
+    #find the train_dataset
+    #at personal level:
+    print('\n#-------------- Obtaining Training Dataset -------------#\n')
+    
+    train_dataset, test_dataset = train_test_spl(0,num_folds,cvdir,dataset_uuid)
+    
+    stop3 = timeit.default_timer()
+    print('Obtaining the training dataset took:   ', int(stop3 - stop2))
+    
+    print('Training dataset has  {}  samples'.format(len(train_dataset)))
+    
+    
+    #=============================================================================#
+    #------------------| Creating and Training all the models |-------------------#
+    #=============================================================================#
+    
+    #------------------------ Parallelization goes here  -------------------------#
+    
+    #impute = True
+    #NAPS_Model = []
+    #with Pool(processes= num_prc) as pool:
+    #    pool.map(f, [1,2,3])
+    #
+    #if __name__ == '__main__':
+    #    # start 4 worker processes
+    #    with Pool(processes=4) as pool:
+    #
+    #        # print "[0, 1, 4,..., 81]"
+    #        print(pool.map(f, range(10)))
+    #    NAPS_Model += pool.map(NAPS_Models_Trainer, (num_rp, fs_range, train_dataset\
+    #                                                  , feature_sets, Response_Perm_1\
+    #                                                  , Response_Perm_2, impute))
+    
+    #NAPS_Models = NAPS_Models_Trainer(num_rp, fs_range, train_dataset, feature_sets\
+    #                                  , Response_Perm_1, Response_Perm_2, impute = True)
+    
+    print('\n#-------------- Creating and Training Models -------------#\n')
+    
+    NAPS_models = []
+    print('\nLooping over Response Permutations \n ')
+    
+    for i in range(num_rp): #i runs over response permutations
         
-        NAPS_models[i][j] = \
-            train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
-                      Response_Perm_2, i, bagging_R, num_bags, impute = True)
-        #find X and y
-#         X_train, y_train, y1, y2 = Xy(train_dataset, feature_sets, j, \
-#                         Response_Perm_1, Response_Perm_2, i, impute = True)
-# #        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+        start_rp = timer()
         
-#         X_train_tmp, y_train_tmp = smt.fit_sample(X_train, y_train)
+        print('\nResponse Permutation {}/{}'.format(i+1,num_rp))
+        print('\n\tLooping over feature sets')
+        NAPS_models.append([])
         
-#         X_train = pd.DataFrame(X_train_tmp, columns = X_train.columns)
-#         y_train = pd.DataFrame(y_train_tmp, columns = ['Merged_label'])
+        progress = ProgressBar(num_fs, fmt = ProgressBar.FULL)
         
+        with mp.Pool(num_prc) as p:
+            NAPS_models[i] = p.starmap(train_NAPS_Models,zip( 
+                                           repeat(train_dataset), 
+                                           repeat(feature_sets),
+                                           list(range(num_fs)),
+                                           repeat(Response_Perm_1),
+                                           repeat(Response_Perm_2), 
+                                           repeat(i),
+                                           repeat(bagging_R),
+                                           repeat(num_bags),
+                                           repeat(True)))
+
         
-#         if j == 0:
-#             U2 = Uncertainty_Bias([y1, y2])
-
-#         #create a model and train it
-#         NAPS_models[i][j] = DS_Model(Response_Perm_1[i], Response_Perm_2[i], \
-#                    X_train, y_train, j)
-#         NAPS_models[i][j].Bags_Trainer(X_train, y_train, bagging_R, num_bags)
-#         NAPS_models[i][j].Uncertainty_B = U2
-        
-        progress.current += 1
-        progress()
-    
-    progress.done()
-    
-    stop_rp = timer()
-    
-    print("\n It took : ", stop_rp - start_rp)
-
-stop4 = timeit.default_timer()
-print('Training all models took:   ', int(stop4 - stop3))
-    
-#=============================================================================#
-#------------------| Model Selection and Testing Models |---------------------#
-#=============================================================================#
-
-print('\n#-------------- Testing the Models -------------#\n')
-test_dataset[FOD] = test_dataset[FOD].fillna(0)
-test_dataset = test_dataset[np.sum(test_dataset[FOD], axis=1) != 0]
-
-y_test_ag = np.zeros([len(test_dataset),len(FOD)])
-y_pred_ag = np.zeros([len(test_dataset),len(FOD)])
-
-
-for t in range(len(test_dataset)):
-# for t in range(50):
-    print(t,'/',len(test_dataset))
-    test_sample = test_dataset.iloc[t,:]
-    test_sample = test_sample.to_frame().transpose()
-    y_test_ag[t,:] = np.floor(test_sample[FOD].fillna(0).values)
-    
-    assert np.sum(y_test_ag == 1)
-    
-    Uncertainty_Mat = np.ones([num_rp, num_fs])
-    
-    for i in range(num_rp):
-        for j in range(num_fs):
-            X_test, y_test, y1, y2 = Xy(test_sample, feature_sets, j, \
-                                    Response_Perm_1, Response_Perm_2, i, impute = True)
-            if len(X_test) != 0 or len(y_test) != 0:
-                Uncertainty_Mat[i][j] = (NAPS_models[i][j].Uncertainty_B +\
-                                NAPS_models[i][j].Uncertainty_Context(X_test))/2
-            NAPS_models[i][j].Mass_Function_Setter(Uncertainty_Mat[i][j], X_test)
+        # for j in range(num_fs): #j runs over feature sets
+        #     NAPS_models[i].append([])
             
-    #=========\ Model Selection/==========#
+        #     NAPS_models[i][j] = \
+        #         train_NAPS_Models(train_dataset, feature_sets, j, Response_Perm_1, \
+        #                   Response_Perm_2, i, bagging_R, num_bags, impute = True)
+            #find X and y
+    #         X_train, y_train, y1, y2 = Xy(train_dataset, feature_sets, j, \
+    #                         Response_Perm_1, Response_Perm_2, i, impute = True)
+    # #        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+            
+    #         X_train_tmp, y_train_tmp = smt.fit_resample(X_train, y_train)
+            
+    #         X_train = pd.DataFrame(X_train_tmp, columns = X_train.columns)
+    #         y_train = pd.DataFrame(y_train_tmp, columns = ['Merged_label'])
+            
+            
+    #         if j == 0:
+    #             U2 = Uncertainty_Bias([y1, y2])
     
-    Selected_Models_idx = Model_Selector(Uncertainty_Mat, models_per_rp, num_rp, 1)
-    y_pred_ag[t,:] = Fuse_and_Predict(Selected_Models_idx, NAPS_models, FOD, num_p, \
-              num_rp, models_per_rp)
-
-stop5 = timeit.default_timer()
-print('Testing took:   ', int(stop5 - stop4))
-
-
-
-conf_mat = confusion_matrix(y_test_ag, y_pred_ag)
-accuracy = accuracy_score(y_test_ag, y_pred_ag)
-balanced_accuracy = balanced_accuracy_score(y_test_ag, y_pred_ag)
-f1 = f1_score(y_test_ag, y_pred_ag)
-
-
-
-#!!!!!!!!! Model Selection based on the uncertainty should be fixed !!!!!!!!
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    #         #create a model and train it
+    #         NAPS_models[i][j] = DS_Model(Response_Perm_1[i], Response_Perm_2[i], \
+    #                    X_train, y_train, j)
+    #         NAPS_models[i][j].Bags_Trainer(X_train, y_train, bagging_R, num_bags)
+    #         NAPS_models[i][j].Uncertainty_B = U2
+            
+            progress.current += 1
+            progress()
+        
+        progress.done()
+        
+        stop_rp = timer()
+        
+        print("\n It took : ", stop_rp - start_rp)
+    
+    stop4 = timeit.default_timer()
+    print('Training all models took:   ', int(stop4 - stop3))
+        
+    #=============================================================================#
+    #------------------| Model Selection and Testing Models |---------------------#
+    #=============================================================================#
+    
+    print('\n#-------------- Testing the Models -------------#\n')
+    test_dataset[FOD] = test_dataset[FOD].fillna(0)
+    test_dataset = test_dataset[np.sum(test_dataset[FOD], axis=1) != 0]
+    
+    y_test_ag = np.zeros([len(test_dataset),len(FOD)])
+    y_pred_ag = np.zeros([len(test_dataset),len(FOD)])
+    
+    
+    for t in range(len(test_dataset)):
+    # for t in range(50):
+        print(t,'/',len(test_dataset))
+        test_sample = test_dataset.iloc[t,:]
+        test_sample = test_sample.to_frame().transpose()
+        y_test_ag[t,:] = np.floor(test_sample[FOD].fillna(0).values)
+        
+        assert np.sum(y_test_ag == 1)
+        
+        Uncertainty_Mat = np.ones([num_rp, num_fs])
+        
+        for i in range(num_rp):
+            for j in range(num_fs):
+                X_test, y_test, y1, y2 = Xy(test_sample, feature_sets, j, \
+                                        Response_Perm_1, Response_Perm_2, i, impute = True)
+                if len(X_test) != 0 or len(y_test) != 0:
+                    Uncertainty_Mat[i][j] = (NAPS_models[i][j].Uncertainty_B +\
+                                    NAPS_models[i][j].Uncertainty_Context(X_test))/2
+                NAPS_models[i][j].Mass_Function_Setter(Uncertainty_Mat[i][j], X_test)
+                
+        #=========\ Model Selection/==========#
+        
+        Selected_Models_idx = Model_Selector(Uncertainty_Mat, models_per_rp, num_rp, 1)
+        y_pred_ag[t,:] = Fuse_and_Predict(Selected_Models_idx, NAPS_models, FOD, num_p, \
+                  num_rp, models_per_rp)
+    
+    stop5 = timeit.default_timer()
+    print('Testing took:   ', int(stop5 - stop4))
+    
+    
+    
+    #conf_mat = confusion_matrix(y_test_ag, y_pred_ag)
+    accuracy = accuracy_score(y_test_ag, y_pred_ag)
+    #balanced_accuracy = balanced_accuracy_score(y_test_ag, y_pred_ag)
+    f1 = f1_score(y_test_ag, y_pred_ag, average='weighted')
+    
+    
+    
+    #!!!!!!!!! Model Selection based on the uncertainty should be fixed !!!!!!!!
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
